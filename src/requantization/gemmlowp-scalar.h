@@ -11,6 +11,8 @@
 #include <stdint.h>
 #include <limits.h>
 
+#include <xnnpack/scalar-utils.h>
+
 // The code below is adapted from Google's gemmlowp library.
 // It is only used in XNNPACK unit tests and comparative benchmarks, but not the library itself.
 //

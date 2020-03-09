@@ -21,18 +21,16 @@
 #include <xnnpack/common.h>
 #include <xnnpack/requantization-stubs.h>
 
-inline uint32_t divideRoundUp(uint32_t x, uint32_t q)
-{
+
+inline uint32_t divide_round_up(uint32_t x, uint32_t q) {
   return x / q + uint32_t(x % q != 0);
 }
 
-inline uint32_t roundUp(uint32_t x, uint32_t q)
-{
-  return q * divideRoundUp(x, q);
+inline uint32_t round_up(uint32_t x, uint32_t q) {
+  return q * divide_round_up(x, q);
 }
 
-inline uint32_t min(uint32_t a, uint32_t b)
-{
+inline uint32_t min(uint32_t a, uint32_t b) {
   return a < b ? a : b;
 }
 

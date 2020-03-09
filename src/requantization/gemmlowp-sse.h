@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <limits.h>
+#include <stdint.h>
 
 #include <immintrin.h>
 
