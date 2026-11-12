@@ -8,20 +8,22 @@ $assert PIXEL_TILE % 4 == 0
 $ABC = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 $VMULADDQ_F32 = "vfmaq_f32" if FMA else "vmlaq_f32"
 $VMULADD_F32 = "vfma_f32" if FMA else "vmla_f32"
-#include <assert.h>
-
 #include <arm_neon.h>
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
 
-#include <xnnpack/ibilinear.h>
+#include "src/xnnpack/common.h"
+#include "src/xnnpack/ibilinear.h"
 
 
 void xnn_f32_ibilinear_chw_ukernel__${"neonfma" if FMA else "neon"}_p${PIXEL_TILE}(
     size_t output_pixels,
     size_t channels,
-    const float**restrict input,
+    const float** restrict input,
     size_t input_offset,
-    const float*restrict weights,
-    float*restrict output,
+    const float* restrict weights,
+    float* restrict output,
     size_t input_increment) XNN_OOB_READS
 {
   assert(output_pixels != 0);
@@ -44,8 +46,8 @@ void xnn_f32_ibilinear_chw_ukernel__${"neonfma" if FMA else "neon"}_p${PIXEL_TIL
         w += 2 * ${PIXEL_TILE};
 
         $for P in range(0, PIXEL_TILE):
-          const float32x2_t vtltr${ABC[P]} = vld1_f32(itl${P});
-          const float32x2_t vblbr${ABC[P]} = vld1_f32(ibl${P});
+          const float32x2_t vtltr${ABC[P]} = vld1_f32(itl${ABC[P]});
+          const float32x2_t vblbr${ABC[P]} = vld1_f32(ibl${ABC[P]});
 
         $for P in range(0, PIXEL_TILE, 4):
           const float32x4_t valphah${ABC[P:P+4]} = vw${ABC[P:P+4]}.val[0];
@@ -85,16 +87,16 @@ void xnn_f32_ibilinear_chw_ukernel__${"neonfma" if FMA else "neon"}_p${PIXEL_TIL
 
     for (; p >= 4; p -= 4) {
       $for P in range(4):
-        const float* itl${P} = (const float*) ((uintptr_t) i[${2 * P}] + input_offset);
-        const float* ibl${P} = (const float*) ((uintptr_t) i[${2 * P + 1}] + input_offset);
+        const float* itl${ABC[P]} = (const float*) ((uintptr_t) i[${2 * P}] + input_offset);
+        const float* ibl${ABC[P]} = (const float*) ((uintptr_t) i[${2 * P + 1}] + input_offset);
       i += 8;
 
       const float32x4x2_t vw = vld2q_f32(w);
       w += 8;
 
       $for P in range(0, 4):
-        const float32x2_t vtltr${ABC[P]} = vld1_f32(itl${P});
-        const float32x2_t vblbr${ABC[P]} = vld1_f32(ibl${P});
+        const float32x2_t vtltr${ABC[P]} = vld1_f32(itl${ABC[P]});
+        const float32x2_t vblbr${ABC[P]} = vld1_f32(ibl${ABC[P]});
 
       const float32x4_t valphah = vw.val[0];
       const float32x4_t valphav = vw.val[1];
@@ -133,13 +135,13 @@ void xnn_f32_ibilinear_chw_ukernel__${"neonfma" if FMA else "neon"}_p${PIXEL_TIL
         const float32x2_t valphav = vw.val[1];
 
         $for P in range(2):
-          const float* itl${P} = (const float*) ((uintptr_t) i[${2 * P}] + input_offset);
-          const float* ibl${P} = (const float*) ((uintptr_t) i[${2 * P + 1}] + input_offset);
+          const float* itl${ABC[P]} = (const float*) ((uintptr_t) i[${2 * P}] + input_offset);
+          const float* ibl${ABC[P]} = (const float*) ((uintptr_t) i[${2 * P + 1}] + input_offset);
         i += 4;
 
         $for P in range(0, 2):
-          const float32x2_t vtltr${ABC[P]} = vld1_f32(itl${P});
-          const float32x2_t vblbr${ABC[P]} = vld1_f32(ibl${P});
+          const float32x2_t vtltr${ABC[P]} = vld1_f32(itl${ABC[P]});
+          const float32x2_t vblbr${ABC[P]} = vld1_f32(ibl${ABC[P]});
 
         $for P in range(0, 2):
           const float32x2_t vldrd${ABC[P]} = vsub_f32(vblbr${ABC[P]}, vtltr${ABC[P]});

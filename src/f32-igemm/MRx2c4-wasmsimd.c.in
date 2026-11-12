@@ -5,30 +5,36 @@
 
 $assert NR == 2
 $assert MR % 2 == 0
+$assert ACTIVATION != "MINMAX" or ARCH in ["ARM", "X86", "RELAXED"]
+$assert not FMA or ARCH == "RELAXED"
 #include <assert.h>
 
 #include <wasm_simd128.h>
 
-#include <xnnpack/igemm.h>
+#include "src/xnnpack/igemm.h"
 
 
-$assert ACTIVATION in ["LINEAR", "RELU", "MINMAX"]
+$assert ACTIVATION in ["LINEAR", "MINMAX"]
+$if ACTIVATION == "MINMAX":
+$  WASM_F32X4_MIN={"ARM": "wasm_f32x4_min", "X86": "wasm_f32x4_pmin", "RELAXED": "wasm_f32x4_relaxed_min"}[ARCH]
+$  WASM_F32X4_MAX={"ARM": "wasm_f32x4_max", "X86": "wasm_f32x4_pmax", "RELAXED": "wasm_f32x4_relaxed_max"}[ARCH]
 $ACTIVATION_SUFFIX = {"LINEAR": ""}.get(ACTIVATION, "_" + ACTIVATION.lower())
-$ARCH_SUFFIX = "" if ACTIVATION in ["LINEAR", "RELU"] else "_x86" if X86 else "_arm"
-$PARAMS = {"LINEAR": "xnn_f32_default_params", "RELU": "xnn_f32_relu_params", "MINMAX": "xnn_f32_minmax_params"}[ACTIVATION]
-void xnn_f32_igemm${ACTIVATION_SUFFIX}_ukernel_${MR}x${NR}c4__wasmsimd${ARCH_SUFFIX}(
+$ISA = "wasmsimd" if not FMA and (ACTIVATION in ["LINEAR"] or ARCH != "RELAXED") else "wasmrelaxedsimd"
+$ARCH_SUFFIX = "" if not FMA and (ACTIVATION in ["LINEAR"] or ARCH == "RELAXED") else "_" + ("fma" if FMA else ARCH.lower())
+$PARAMS = {"LINEAR": "struct xnn_f32_default_params", "MINMAX": "struct xnn_f32_minmax_params"}[ACTIVATION]
+void xnn_f32_igemm${ACTIVATION_SUFFIX}_ukernel_${MR}x${NR}c4__${ISA}${ARCH_SUFFIX}(
     size_t mr,
     size_t nc,
     size_t kc,
     size_t ks,
-    const float**restrict a,
-    const float*restrict w,
-    float*restrict c,
+    const float** restrict a,
+    const float* restrict w,
+    float* restrict c,
     size_t cm_stride,
     size_t cn_stride,
     size_t a_offset,
     const float* zero,
-    const union ${PARAMS} params[restrict XNN_MIN_ELEMENTS(1)]) XNN_OOB_READS
+    const ${PARAMS}* restrict params) XNN_OOB_READS
 {
   assert(mr != 0);
   assert(mr <= ${MR});
@@ -58,13 +64,15 @@ void xnn_f32_igemm${ACTIVATION_SUFFIX}_ukernel_${MR}x${NR}c4__wasmsimd${ARCH_SUF
         c${M} = c${M-1};
       }
 
-  $if ACTIVATION == "MINMAX" and not X86:
-    const v128_t vmin = wasm_v128_load64_splat(params->wasmsimd.min);
-    const v128_t vmax = wasm_v128_load64_splat(params->wasmsimd.max);
+  $if ACTIVATION == "MINMAX":
+    const v128_t vmin = wasm_v128_load32_splat(&params->scalar.min);
+    const v128_t vmax = wasm_v128_load32_splat(&params->scalar.max);
+    XNN_FORCE_REALIZATION(vmin);
+    XNN_FORCE_REALIZATION(vmax);
   do {
-    v128_t vacc0x0c4 = wasm_f32x4_replace_lane(wasm_f32x4_const_splat(0.0f), 0, w[0]);
+    v128_t vacc0x0c4 = wasm_v128_load32_zero(w);
     $for N in range(1, NR):
-      v128_t vacc0x${N}c4 = wasm_f32x4_replace_lane(vacc0x0c4, 0, w[${N}]);
+      v128_t vacc0x${N}c4 = wasm_v128_load32_zero(w + ${N});
     $for M in range(1, MR):
       $for N in range(NR):
         v128_t vacc${M}x${N}c4 = vacc0x${N}c4;
@@ -93,7 +101,10 @@ void xnn_f32_igemm${ACTIVATION_SUFFIX}_ukernel_${MR}x${NR}c4__wasmsimd${ARCH_SUF
 
         $for M in range(MR):
           $for N in range(NR):
-            vacc${M}x${N}c4 = wasm_f32x4_add(vacc${M}x${N}c4, wasm_f32x4_mul(va${M}, vb${N}));
+            $if FMA:
+              vacc${M}x${N}c4 = wasm_f32x4_relaxed_madd(va${M}, vb${N}, vacc${M}x${N}c4);
+            $else:
+              vacc${M}x${N}c4 = wasm_f32x4_add(wasm_f32x4_mul(va${M}, vb${N}), vacc${M}x${N}c4);
       }
       if XNN_UNLIKELY(k != 0) {
         $for M in range(MR):
@@ -110,7 +121,10 @@ void xnn_f32_igemm${ACTIVATION_SUFFIX}_ukernel_${MR}x${NR}c4__wasmsimd${ARCH_SUF
 
         $for M in range(MR):
           $for N in range(NR):
-            vacc${M}x${N}c4 = wasm_f32x4_add(vacc${M}x${N}c4, wasm_f32x4_mul(wasm_v128_andnot(va${M}, vmask${N}), vb${N}));
+            $if FMA:
+              vacc${M}x${N}c4 = wasm_f32x4_relaxed_madd(wasm_v128_andnot(va${M}, vmask${N}), vb${N}, vacc${M}x${N}c4);
+            $else:
+              vacc${M}x${N}c4 = wasm_f32x4_add(wasm_f32x4_mul(wasm_v128_andnot(va${M}, vmask${N}), vb${N}), vacc${M}x${N}c4);
       }
       p -= ${MR} * sizeof(void*);
     } while (p != 0);
@@ -126,30 +140,16 @@ void xnn_f32_igemm${ACTIVATION_SUFFIX}_ukernel_${MR}x${NR}c4__wasmsimd${ARCH_SUF
         wasm_v32x4_shuffle(vacc${M}x01c2, vacc${M+1}x01c2, 2, 3, 6, 7));
 
     $if ACTIVATION == "MINMAX":
-      $if X86:
-        const v128_t vmin = wasm_v128_load64_splat(params->wasmsimd.min);
-        $for M in range(0, MR, 2):
-          vacc${M}${M+1}x01 = wasm_f32x4_pmax(vmin, vacc${M}${M+1}x01);
-
-        const v128_t vmax = wasm_v128_load64_splat(params->wasmsimd.max);
-        $for M in range(0, MR, 2):
-          vacc${M}${M+1}x01 = wasm_f32x4_pmin(vmax, vacc${M}${M+1}x01);
-      $else:
-        $for M in range(0, MR, 2):
-          vacc${M}${M+1}x01 = wasm_f32x4_max(vacc${M}${M+1}x01, vmin);
-
-        $for M in range(0, MR, 2):
-          vacc${M}${M+1}x01 = wasm_f32x4_min(vacc${M}${M+1}x01, vmax);
-    $elif ACTIVATION == "RELU":
-      const v128_t vzero = wasm_i32x4_const_splat(0);
       $for M in range(0, MR, 2):
-        vacc${M}${M+1}x01 = wasm_i32x4_max(vacc${M}${M+1}x01, vzero);
+        vacc${M}${M+1}x01 = ${WASM_F32X4_MAX}(vmin, vacc${M}${M+1}x01);
 
+      $for M in range(0, MR, 2):
+        vacc${M}${M+1}x01 = ${WASM_F32X4_MIN}(vmax, vacc${M}${M+1}x01);
     if XNN_LIKELY(nc >= ${NR}) {
       $for M in reversed(range(0, MR, 2)):
-        *((double*) c${M+1}) = wasm_f64x2_extract_lane(vacc${M}${M+1}x01, 1);
+        wasm_v128_store64_lane(c${M+1}, vacc${M}${M+1}x01, 1);
         c${M+1} = (float*) ((uintptr_t) c${M+1} + cn_stride);
-        *((double*) c${M}) = wasm_f64x2_extract_lane(vacc${M}${M+1}x01, 0);
+        wasm_v128_store64_lane(c${M}, vacc${M}${M+1}x01, 0);
         c${M} = (float*) ((uintptr_t) c${M} + cn_stride);
 
       a = (const float**restrict) ((uintptr_t) a - ks);
@@ -157,8 +157,8 @@ void xnn_f32_igemm${ACTIVATION_SUFFIX}_ukernel_${MR}x${NR}c4__wasmsimd${ARCH_SUF
     } else {
       assert(nc == 1);
       $for M in reversed(range(0, MR, 2)):
-        *c${M+1} = wasm_f32x4_extract_lane(vacc${M}${M+1}x01, 2);
-        *c${M} = wasm_f32x4_extract_lane(vacc${M}${M+1}x01, 0);
+        wasm_v128_store32_lane(c${M+1}, vacc${M}${M+1}x01, 2);
+        wasm_v128_store32_lane(c${M}, vacc${M}${M+1}x01, 0);
 
       nc = 0;
     }

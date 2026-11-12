@@ -3,380 +3,43 @@
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree.
 
-#pragma once
+#ifndef XNNPACK_SRC_XNNPACK_VCVT_H_
+#define XNNPACK_SRC_XNNPACK_VCVT_H_
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include <xnnpack/params.h>
-#include <xnnpack/common.h>
+#include "src/xnnpack/common.h"
+#include "src/xnnpack/microparams.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
-#define DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(fn_name) \
-  XNN_INTERNAL void fn_name(                           \
-      size_t n,                                        \
-      const void* input,                               \
-      float* output,                                   \
-      const union xnn_f16_f32_cvt_params* params);
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__neon_int16_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__neon_int16_x16)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__neon_int16_x24)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__neon_int16_x32)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__neon_int32_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__neon_int32_x16)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__neon_int32_x24)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__neon_int32_x32)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__neonfp16_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__neonfp16_x16)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse2_int16_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse2_int16_x16)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse2_int16_x24)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse2_int16_x32)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse2_int32_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse2_int32_x16)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse2_int32_x24)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse2_int32_x32)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse41_int16_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse41_int16_x16)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse41_int16_x24)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse41_int16_x32)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse41_int32_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse41_int32_x16)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse41_int32_x24)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__sse41_int32_x32)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__avx_int16_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__avx_int16_x16)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__avx_int16_x24)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__avx_int16_x32)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__avx_int32_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__avx_int32_x16)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__avx_int32_x24)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__avx_int32_x32)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__f16c_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__f16c_x16)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__avx512skx_x16)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__avx512skx_x32)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__wasmsimd_int16_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__wasmsimd_int16_x16)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__wasmsimd_int16_x24)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__wasmsimd_int16_x32)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__wasmsimd_int32_x8)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__wasmsimd_int32_x16)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__wasmsimd_int32_x24)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__wasmsimd_int32_x32)
-
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__scalar_x1)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__scalar_x2)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__scalar_x3)
-DECLARE_F16_F32_VCVT_UKERNEL_FUNCTION(xnn_f16_f32_vcvt_ukernel__scalar_x4)
-
-
-#define DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(fn_name) \
-  XNN_INTERNAL void fn_name(                           \
-      size_t n,                                        \
-      const float* input,                              \
-      void* output,                                    \
-      const union xnn_f32_f16_cvt_params* params);
-
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__neon_x8)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__neon_x16)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__neon_x24)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__neon_x32)
-
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__neonfp16_x8)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__neonfp16_x16)
-
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__sse2_x8)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__sse2_x16)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__sse2_x24)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__sse2_x32)
-
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__sse41_x8)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__sse41_x16)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__sse41_x24)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__sse41_x32)
-
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__avx_x8)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__avx_x16)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__avx_x24)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__avx_x32)
-
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__f16c_x8)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__f16c_x16)
-
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__avx512skx_x16)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__avx512skx_x32)
-
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__wasmsimd_x8)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__wasmsimd_x16)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__wasmsimd_x24)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__wasmsimd_x32)
-
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__scalar_bitcast_x1)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__scalar_bitcast_x2)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__scalar_bitcast_x3)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__scalar_bitcast_x4)
-
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__scalar_fabsf_x1)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__scalar_fabsf_x2)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__scalar_fabsf_x3)
-DECLARE_F32_F16_VCVT_UKERNEL_FUNCTION(xnn_f32_f16_vcvt_ukernel__scalar_fabsf_x4)
-
-
-#define DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(fn_name) \
-  XNN_INTERNAL void fn_name(                           \
-      size_t n,                                        \
-      const float* input,                              \
-      int8_t* output,                                  \
-      const union xnn_f32_qs8_cvt_params* params);
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__neon_x8)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__neon_x16)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__neon_x24)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__neon_x32)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__neonv8_x8)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__neonv8_x16)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__neonv8_x24)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__neonv8_x32)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__sse2_x8)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__sse2_x16)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__sse2_x24)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__sse2_x32)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__sse41_x8)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__sse41_x16)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__sse41_x24)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__sse41_x32)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx_x8)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx_x16)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx_x24)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx_x32)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx2_x16)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx2_x32)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx2_x48)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx2_x64)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx512skx_x32)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx512skx_x64)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx512skx_x96)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__avx512skx_x128)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasmsimd_cvt_x8)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasmsimd_cvt_x16)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasmsimd_cvt_x24)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasmsimd_cvt_x32)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasmsimd_magic_x8)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasmsimd_magic_x16)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasmsimd_magic_x24)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasmsimd_magic_x32)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasm_fmagic_x1)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasm_fmagic_x2)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasm_fmagic_x3)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__wasm_fmagic_x4)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_fmagic_x1)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_fmagic_x2)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_fmagic_x3)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_fmagic_x4)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_imagic_x1)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_imagic_x2)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_imagic_x3)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_imagic_x4)
-
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_lrintf_x1)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_lrintf_x2)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_lrintf_x3)
-DECLARE_F32_QS8_VCVT_UKERNEL_FUNCTION(xnn_f32_qs8_vcvt_ukernel__scalar_lrintf_x4)
-
-
-#define DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(fn_name) \
-  XNN_INTERNAL void fn_name(                           \
-      size_t n,                                        \
-      const float* input,                              \
-      uint8_t* output,                                 \
-      const union xnn_f32_qu8_cvt_params* params);
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__neon_x8)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__neon_x16)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__neon_x24)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__neon_x32)
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__neonv8_x8)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__neonv8_x16)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__neonv8_x24)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__neonv8_x32)
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__sse2_x8)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__sse2_x16)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__sse2_x24)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__sse2_x32)
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx_x8)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx_x16)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx_x24)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx_x32)
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx2_x16)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx2_x32)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx2_x48)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx2_x64)
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx512skx_x32)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx512skx_x64)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx512skx_x96)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__avx512skx_x128)
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasmsimd_cvt_x8)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasmsimd_cvt_x16)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasmsimd_cvt_x24)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasmsimd_cvt_x32)
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasmsimd_magic_x8)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasmsimd_magic_x16)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasmsimd_magic_x24)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasmsimd_magic_x32)
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasm_fmagic_x1)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasm_fmagic_x2)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasm_fmagic_x3)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__wasm_fmagic_x4)
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_fmagic_x1)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_fmagic_x2)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_fmagic_x3)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_fmagic_x4)
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_imagic_x1)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_imagic_x2)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_imagic_x3)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_imagic_x4)
-
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_lrintf_x1)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_lrintf_x2)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_lrintf_x3)
-DECLARE_F32_QU8_VCVT_UKERNEL_FUNCTION(xnn_f32_qu8_vcvt_ukernel__scalar_lrintf_x4)
-
-
-#define DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(fn_name) \
-  XNN_INTERNAL void fn_name(                           \
-      size_t n,                                        \
-      const int8_t* input,                             \
-      float* output,                                   \
-      const union xnn_qs8_f32_cvt_params* params);
-
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__neon_x8)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__neon_x16)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__neon_x24)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__neon_x32)
-
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__sse2_x8)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__sse2_x16)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__sse2_x24)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__sse2_x32)
-
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__sse41_x8)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__sse41_x16)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__sse41_x24)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__sse41_x32)
-
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx_x8)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx_x16)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx_x24)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx_x32)
-
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx2_x8)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx2_x16)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx2_x24)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx2_x32)
-
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx512skx_x16)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx512skx_x32)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx512skx_x48)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__avx512skx_x64)
-
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__wasmsimd_x8)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__wasmsimd_x16)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__wasmsimd_x24)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__wasmsimd_x32)
-
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__scalar_x1)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__scalar_x2)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__scalar_x3)
-DECLARE_QS8_F32_VCVT_UKERNEL_FUNCTION(xnn_qs8_f32_vcvt_ukernel__scalar_x4)
-
-
-#define DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(fn_name) \
-  XNN_INTERNAL void fn_name(                           \
-      size_t n,                                        \
-      const uint8_t* input,                            \
-      float* output,                                   \
-      const union xnn_qu8_f32_cvt_params* params);
-
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__neon_x8)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__neon_x16)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__neon_x24)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__neon_x32)
-
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__sse2_x8)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__sse2_x16)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__sse2_x24)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__sse2_x32)
-
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__sse41_x8)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__sse41_x16)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__sse41_x24)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__sse41_x32)
-
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx_x8)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx_x16)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx_x24)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx_x32)
-
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx2_x8)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx2_x16)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx2_x24)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx2_x32)
-
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx512skx_x16)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx512skx_x32)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx512skx_x48)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__avx512skx_x64)
-
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__wasmsimd_x8)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__wasmsimd_x16)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__wasmsimd_x24)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__wasmsimd_x32)
-
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__scalar_x1)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__scalar_x2)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__scalar_x3)
-DECLARE_QU8_F32_VCVT_UKERNEL_FUNCTION(xnn_qu8_f32_vcvt_ukernel__scalar_x4)
-
+#define XNN_UKERNEL(arch_flags, ukernel, batch_tile,          \
+                                    vector_tile, type_in, type_out,           \
+                                    params_type, init_params)                 \
+  XNN_INTERNAL void ukernel(size_t n, const type_in* input, type_out* output, \
+                            const params_type* params);
+#include "src/bf16-f32-vcvt/bf16-f32-vcvt.inc"
+#include "src/bf16-qs8-vcvt/bf16-qs8-vcvt.inc"
+#include "src/bf16-qu8-vcvt/bf16-qu8-vcvt.inc"
+#include "src/f16-f32-vcvt/f16-f32-vcvt.inc"
+#include "src/f16-qs8-vcvt/f16-qs8-vcvt.inc"
+#include "src/f16-qu8-vcvt/f16-qu8-vcvt.inc"
+#include "src/f32-bf16-vcvt/f32-bf16-vcvt.inc"
+#include "src/f32-f16-vcvt/f32-f16-vcvt.inc"
+#include "src/f32-qs8-vcvt/f32-qs8-vcvt.inc"
+#include "src/f32-qu8-vcvt/f32-qu8-vcvt.inc"
+#include "src/qs8-f16-vcvt/qs8-f16-vcvt.inc"
+#include "src/qs8-f32-vcvt/qs8-f32-vcvt.inc"
+#include "src/qs8-vcvt/qs8-vcvt.inc"
+#include "src/qu8-f32-vcvt/qu8-f32-vcvt.inc"
+#include "src/qu8-vcvt/qu8-vcvt.inc"
+#undef XNN_UKERNEL
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
+
+#endif  // XNNPACK_SRC_XNNPACK_VCVT_H_

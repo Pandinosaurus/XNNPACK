@@ -1,0 +1,26 @@
+// clang-format off
+// Copyright 2024 Google LLC
+//
+// This source code is licensed under the BSD-style license found in the
+// LICENSE file in the root directory of this source tree.
+
+
+// Arguments are:
+// XNN_UKERNEL(arch, ukernel, unroll)
+XNN_UKERNEL(xnn_arch_none, xnn_x8_packq_f32qp8_ukernel__scalar_u1, 1)
+
+#if XNN_ENABLE_KLEIDIAI
+XNN_UKERNEL(xnn_arch_arm_neon, xnn_x8_packq_f32qp8_ukernel__aarch64_neon_u2, 2)
+#endif  // XNN_ENABLE_KLEIDIAI
+
+#if XNN_ENABLE_ARM_SME && XNN_ENABLE_ARM_SME_ACLE && XNN_ARCH_ARM64
+XNN_UKERNEL(xnn_arch_arm_sme, xnn_x8_packq_f32qp8_ukernel__sme, 1)
+#endif  // XNN_ENABLE_ARM_SME && XNN_ENABLE_ARM_SME_ACLE && XNN_ARCH_ARM64
+
+#if XNN_ENABLE_ARM_SME2 && XNN_ENABLE_ARM_SME_ACLE && XNN_ARCH_ARM64
+XNN_UKERNEL(xnn_arch_arm_sme2, xnn_x8_packq_f32qp8_ukernel__sme2, 1)
+#endif  // XNN_ENABLE_ARM_SME2 && XNN_ENABLE_ARM_SME_ACLE && XNN_ARCH_ARM64
+
+#if XNN_ENABLE_ACE && XNN_ARCH_X86_64
+XNN_UKERNEL(xnn_arch_x86_ace, xnn_x8_packq_f32qp8_ukernel__ace_u16, 16)
+#endif  // XNN_ENABLE_ACE && XNN_ARCH_X86_64

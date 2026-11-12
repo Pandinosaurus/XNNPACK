@@ -6,128 +6,39 @@
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree.
 
-#pragma once
+#ifndef XNNPACK_SRC_XNNPACK_ISA_CHECKS_H_
+#define XNNPACK_SRC_XNNPACK_ISA_CHECKS_H_
 
-#include <cpuinfo.h>
+#include <stddef.h>
 
-#include <xnnpack/common.h>
+#include "src/xnnpack/common.h"
+#include "src/xnnpack/hardware-config.h"
 
+inline size_t get_batch_scale(size_t element_size) {
+#if XNN_ARCH_RISCV
+  const struct xnn_hardware_config* hardware_config =
+      xnn_init_hardware_config();
+  return hardware_config
+             ? std::max<size_t>(1, hardware_config->vlenb / element_size)
+             : 1;
+#else
+  return 1;
+#endif
+}
 
-#define TEST_REQUIRES_X86_SSE \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_x86_sse()) { \
-      GTEST_SKIP(); \
-    } \
+template <typename T>
+size_t get_batch_scale() {
+  return get_batch_scale(sizeof(T));
+}
+
+#define TEST_REQUIRES_ARCH_FLAGS(FLAGS)                       \
+  do {                                                        \
+    const struct xnn_hardware_config* hardware_config =       \
+        xnn_init_hardware_config();                           \
+    if (hardware_config == nullptr ||                         \
+        (hardware_config->arch_flags & (FLAGS)) != (FLAGS)) { \
+      GTEST_SKIP();                                           \
+    }                                                         \
   } while (0)
 
-#define TEST_REQUIRES_X86_SSE2 \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_x86_sse2()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_X86_SSSE3 \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_x86_ssse3()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_X86_SSE41 \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_x86_sse4_1()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_X86_AVX \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_x86_avx()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_X86_F16C \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_x86_f16c()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_X86_XOP \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_x86_xop()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_X86_FMA3 \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_x86_fma3()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_X86_AVX2 \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_x86_avx2()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_X86_AVX512F \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_x86_avx512f()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_X86_AVX512SKX \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_x86_avx512f() || !cpuinfo_has_x86_avx512cd() || !cpuinfo_has_x86_avx512dq() || !cpuinfo_has_x86_avx512bw() || !cpuinfo_has_x86_avx512vl()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_ARM_NEON \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_arm_neon()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_ARM_NEON_FP16 \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_arm_neon_fp16()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_ARM_NEON_FMA \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_arm_neon_fma()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_ARM_NEON_V8 \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_arm_neon_v8()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_ARM_NEON_FP16_ARITH \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_arm_neon_fp16_arith()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
-
-#define TEST_REQUIRES_ARM_NEON_DOT \
-  do { \
-    if (!cpuinfo_initialize() || !cpuinfo_has_arm_neon_dot()) { \
-      GTEST_SKIP(); \
-    } \
-  } while (0)
+#endif  // XNNPACK_SRC_XNNPACK_ISA_CHECKS_H_

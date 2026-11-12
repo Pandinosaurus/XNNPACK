@@ -6,6 +6,8 @@
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree.
 
+// clang-format off
+
 #ifdef __wasm__
   .macro BEGIN_FUNCTION name
     .text
@@ -24,8 +26,12 @@
     .text
     .p2align 4
     .global \name
+    .internal \name
     .type \name, %function
     \name:
+#if defined(__aarch64__)
+      bti c
+#endif
   .endm
 
   .macro END_FUNCTION name
@@ -42,4 +48,30 @@
 
   .macro END_FUNCTION name
   .endm
+#elif defined(_WIN64)
+  .macro BEGIN_FUNCTION name
+    .text
+    .p2align 4
+    .global \name
+    \name:
+  .endm
+
+  .macro END_FUNCTION name
+  .endm
+#elif defined(_WIN32)
+  .macro BEGIN_FUNCTION name
+    .text
+    .p2align 4
+    .global _\name
+    _\name:
+  .endm
+
+  .macro END_FUNCTION name
+  .endm
+#endif
+
+#ifdef __has_feature
+#define XNN_HAS_FEATURE(feature) __has_feature(feature)
+#else
+#define XNN_HAS_FEATURE(feature) 0
 #endif

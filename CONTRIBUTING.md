@@ -22,6 +22,28 @@ use GitHub pull requests for this purpose. Consult
 [GitHub Help](https://help.github.com/articles/about-pull-requests/) for more
 information on using pull requests.
 
+## Development & PR Guidelines
+
+Before contributing, please read [AGENTS.md](AGENTS.md) for architectural
+guidelines, code generation workflows, and pull request requirements.
+
+In particular:
+- **Atomic Scope**: Keep pull requests focused on a single operator or
+  microkernel family.
+- **Code Generation**: Never edit auto-generated files directly; update
+  templates (`.c.in`) or specifications (`.yaml`) and run the generators.
+- **Copyright Headers**: When adding a new source file (including new `.c.in`
+  templates) with a copyright notice, set the copyright date to the current
+  year (and regenerate any derived files). Do not modify copyright dates on
+  existing files or existing templates.
+- **Benchmarking**: Performance and microkernel changes require reproducible
+  benchmark results from `bench/` on target hardware.
+- **No Speculative Sweeps**: Avoid mass defensive hardening or redundant
+  internal validation sweeps.
+- **Minimal Comments**: Omit comments on self-explanatory code or validation
+  checks (only comment non-obvious invariants), and keep PR descriptions
+  concise (1-3 sentences plus test/benchmark results).
+
 ## Community Guidelines
 
 This project follows [Google's Open Source Community

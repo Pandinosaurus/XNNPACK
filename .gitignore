@@ -12,6 +12,7 @@ bazel-genfiles
 bazel-out
 bazel-testlogs
 bazel-XNNPACK
+MODULE.bazel.lock
 bin/
 build/
 build-*/
@@ -33,3 +34,5 @@ out/
 ehthumbs.db
 Thumbs.db
 *.swp
+.vscode
+.vs

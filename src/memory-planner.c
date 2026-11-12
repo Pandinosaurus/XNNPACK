@@ -8,11 +8,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include <xnnpack/memory-planner.h>
-#include <xnnpack/subgraph.h>
+#include "include/xnnpack.h"
+#include "src/xnnpack/allocator.h"
+#include "src/xnnpack/log.h"
+#include "src/xnnpack/math.h"
+#include "src/xnnpack/memory-planner.h"
+#include "src/xnnpack/subgraph.h"
 
 // Check if two xnn_value's lifecycles overlap.
-inline static bool value_lifecycle_overlap(const struct xnn_value_usage* a, const struct xnn_value_usage* b) {
+inline static bool value_lifecycle_overlap(const struct xnn_usage_record* a, const struct xnn_usage_record* b) {
   assert(a->last_node >= a->first_node);
   assert(b->last_node >= b->first_node);
   if (a->first_node < b->first_node) {
@@ -22,42 +26,61 @@ inline static bool value_lifecycle_overlap(const struct xnn_value_usage* a, cons
   }
 }
 
-// Use this comparison function to sort xnn_value_usage according to the
+// Use this comparison function to sort xnn_usage_record according to the
 // tensor_size in decreasing order.
 static inline int cmp_value_usage_tensor_size(const void* a, const void* b) {
-  const size_t tensor_size_a = (*(struct xnn_value_usage *const*)a)->tensor_size;
-  const size_t tensor_size_b = (*(struct xnn_value_usage *const*)b)->tensor_size;
+  const size_t tensor_size_a = (*(struct xnn_usage_record *const*)a)->tensor_size;
+  const size_t tensor_size_b = (*(struct xnn_usage_record *const*)b)->tensor_size;
   return (tensor_size_b > tensor_size_a) - (tensor_size_b < tensor_size_a);
 }
 
-static void populate_value_lifecycle(const xnn_subgraph_t subgraph, struct xnn_value_usage* usage) {
-  assert(subgraph != NULL);
-  if (subgraph->num_nodes == 0) {
+static void populate_value_lifecycle(const struct xnn_runtime* runtime, struct xnn_usage_record* usage) {
+  assert(runtime != NULL);
+  if (runtime->num_ops == 0) {
     return;
   }
-  // As we initialized first/last_node in each xnn_value_usage to 0 as in 'xnn_init_value_mem_allocation_tracker',
+  // As we initialized first/last_node in each xnn_usage_record to 0 as in 'xnn_init_value_mem_allocation_tracker',
   // we start with the second node to tell whether first/last_node have been set or not, and check the first node last.
-  for (uint32_t nid = 1; nid < subgraph->num_nodes; ++nid) {
-    const struct xnn_node* node = subgraph->nodes + nid;
-    for (uint32_t i = 0; i < node->num_inputs; ++i) {
-      if (usage[node->inputs[i]].first_node == 0) {
-        usage[node->inputs[i]].first_node = nid;
+  for (uint32_t nid = 1; nid < runtime->num_ops; ++nid) {
+    const struct xnn_operator_data* opdata = runtime->opdata + nid;
+    for (uint32_t i = 0; i < opdata->num_inputs; ++i) {
+      if (opdata->inputs[i] == XNN_INVALID_VALUE_ID) {
+        continue;  // Optimized away.
       }
-      usage[node->inputs[i]].last_node = nid;
+      if (usage[opdata->inputs[i]].first_node == 0) {
+        usage[opdata->inputs[i]].first_node = nid;
+      }
+      usage[opdata->inputs[i]].last_node = nid;
     }
-    for (uint32_t i = 0; i < node->num_outputs; ++i) {
-      if (usage[node->outputs[i]].first_node == 0) {
-        usage[node->outputs[i]].first_node = nid;
+    for (uint32_t i = 0; i < opdata->num_outputs; ++i) {
+      if (opdata->outputs[i] == XNN_INVALID_VALUE_ID) {
+        continue;  // Optimized away.
       }
-      usage[node->outputs[i]].last_node = nid;
+      if (usage[opdata->outputs[i]].first_node == 0) {
+        usage[opdata->outputs[i]].first_node = nid;
+      }
+      usage[opdata->outputs[i]].last_node = nid;
     }
   }
-  const struct xnn_node* first_node = subgraph->nodes;
+  const struct xnn_operator_data* first_node = runtime->opdata;
   for (uint32_t i = 0; i < first_node->num_inputs; ++i) {
+    if (first_node->inputs[i] == XNN_INVALID_VALUE_ID) {
+      continue;  // Optimized away.
+    }
     usage[first_node->inputs[i]].first_node = 0;
   }
   for (uint32_t i = 0; i < first_node->num_outputs; ++i) {
+    if (first_node->outputs[i] == XNN_INVALID_VALUE_ID) {
+      continue;  // Optimized away.
+    }
     usage[first_node->outputs[i]].first_node = 0;
+  }
+  // Separate loop over all values to make sure we have usage records properly initialized with invalid reuse_value_id.
+  // Some usage records are not associated with any nodes, and they will not be visited by the loops over nodes above.
+  for (uint32_t i = 0; i < runtime->num_values + runtime->num_ops; i++) {
+    usage[i].reuse_value_id = XNN_INVALID_VALUE_ID;
+    usage[i].alloc_offset = SIZE_MAX;
+    usage[i].opdata_id = XNN_INVALID_NODE_ID;
   }
 }
 
@@ -84,10 +107,6 @@ static size_t find_value_alloc_offset(struct memory_block* live_mem_blocks,
     return 0;
   }
 
-  if (num_mem_blocks == 1) {
-    return live_mem_blocks[0].end;
-  }
-
   // Sort memory blocks according to 'start' in increasing order.
   qsort(live_mem_blocks, num_mem_blocks, sizeof(struct memory_block), cmp_memory_block);
 
@@ -109,28 +128,48 @@ static size_t find_value_alloc_offset(struct memory_block* live_mem_blocks,
   }
 
   size_t smallest_gap_size = SIZE_MAX;
-  // The first index to live_mem_blocks that the 'to_alloc_size' should be allocated after.
-  size_t smallest_gap_index = num_coalesced_mem_blocks - 1;
+  size_t alloc_offset = live_mem_blocks[num_coalesced_mem_blocks - 1].end;
+  if (live_mem_blocks[0].start >= to_alloc_size) {
+    smallest_gap_size = live_mem_blocks[0].start;
+    alloc_offset = 0;
+  }
   for (size_t i = 0; i < num_coalesced_mem_blocks - 1; ++i) {
     assert(live_mem_blocks[i + 1].start > live_mem_blocks[i].end);
     const size_t gap = live_mem_blocks[i + 1].start - live_mem_blocks[i].end;
     if (gap >= to_alloc_size && gap < smallest_gap_size) {
-      smallest_gap_index = i;
       smallest_gap_size = gap;
+      alloc_offset = live_mem_blocks[i].end;
     }
   }
-  return live_mem_blocks[smallest_gap_index].end;
+  return alloc_offset;
 }
 
-void xnn_init_value_allocation_tracker(struct xnn_value_allocation_tracker* tracker, const xnn_subgraph_t subgraph) {
-  tracker->subgraph = subgraph;
+enum xnn_status xnn_init_value_allocation_tracker(
+  struct xnn_value_allocation_tracker* tracker,
+  const struct xnn_runtime* runtime)
+{
   tracker->mem_arena_size = 0;
-  tracker->usage = xnn_allocate_zero_memory(sizeof(struct xnn_value_usage) * subgraph->num_values);
-#if XNN_ENABLE_MEMOPT
-  populate_value_lifecycle(tracker->subgraph, tracker->usage);
-#endif
+  tracker->usage = xnn_allocate_zero_memory(sizeof(struct xnn_usage_record) * (runtime->num_values + runtime->num_ops));
+  if (tracker->usage == NULL) {
+    xnn_log_error("failed to allocate %zu bytes for memory planning usage tracker",
+                  sizeof(struct xnn_usage_record) * (runtime->num_values + runtime->num_ops));
+    return xnn_status_out_of_memory;
+  }
+  populate_value_lifecycle(runtime, tracker->usage);
   tracker->min_value_id = XNN_INVALID_VALUE_ID;
   tracker->max_value_id = XNN_INVALID_VALUE_ID;
+  return xnn_status_success;
+}
+
+void xnn_mark_tensor_as_reuse(struct xnn_value_allocation_tracker* tracker,
+                              uint32_t value_id,
+                              uint32_t reuse_value_id,
+                              uint32_t new_last_node) {
+  // Set tensor_size to 0 so memory planner will not try to find memory for these tensors.
+  tracker->usage[value_id].tensor_size = 0;
+  tracker->usage[value_id].reuse_value_id = reuse_value_id;
+  // The reused tensor has an expanded live-range.
+  tracker->usage[reuse_value_id].last_node = new_last_node;
 }
 
 void xnn_add_value_allocation_tracker(struct xnn_value_allocation_tracker* tracker,
@@ -148,56 +187,114 @@ void xnn_add_value_allocation_tracker(struct xnn_value_allocation_tracker* track
   tracker->max_value_id = value_id;
 }
 
-void xnn_plan_value_allocation_tracker(struct xnn_value_allocation_tracker* tracker) {
-#if XNN_ENABLE_MEMOPT
+void xnn_add_operator_workspace_allocation_tracker(
+  struct xnn_value_allocation_tracker* tracker,
+  uint32_t operator_workspace_value_id,
+  size_t tensor_size,
+  uint32_t opdata_id)
+{
+  tracker->usage[operator_workspace_value_id].tensor_size = tensor_size;
+  if (tracker->min_value_id == XNN_INVALID_VALUE_ID) {
+    tracker->min_value_id = operator_workspace_value_id;
+  } else {
+    // Note that values are expected to be added in increasing order.
+    assert(operator_workspace_value_id > tracker->min_value_id);
+    assert(operator_workspace_value_id > tracker->max_value_id);
+  }
+  tracker->max_value_id = operator_workspace_value_id;
+  tracker->usage[operator_workspace_value_id].first_node = opdata_id;
+  tracker->usage[operator_workspace_value_id].last_node = opdata_id;
+  tracker->usage[operator_workspace_value_id].opdata_id = opdata_id;
+}
+
+enum xnn_status xnn_plan_value_allocation_tracker(struct xnn_value_allocation_tracker* tracker) {
   if (tracker->min_value_id == XNN_INVALID_VALUE_ID) {
     assert(tracker->max_value_id == XNN_INVALID_VALUE_ID);
-    return;
+    return xnn_status_success;
   }
 
   const uint32_t num_values = tracker->max_value_id - tracker->min_value_id + 1;
-  struct xnn_value_usage** sorted_usage = xnn_allocate_zero_memory(sizeof(struct xnn_value_usage*) * num_values);
+  struct xnn_usage_record** sorted_usage = xnn_allocate_zero_memory(sizeof(struct xnn_usage_record*) * num_values);
+  if (sorted_usage == NULL) {
+    xnn_log_error("failed to allocate %zu bytes for memory planning sorted usage array",
+                  sizeof(struct xnn_usage_record*) * num_values);
+    return xnn_status_out_of_memory;
+  }
   size_t num_values_to_alloc = 0;
   for (size_t i = tracker->min_value_id; i <= tracker->max_value_id; ++i) {
-    struct xnn_value_usage* info = tracker->usage + i;
+    struct xnn_usage_record* info = tracker->usage + i;
     if (info->tensor_size != 0) {
       sorted_usage[num_values_to_alloc++] = info;
     }
   }
-  qsort(sorted_usage, num_values_to_alloc, sizeof(struct xnn_value_usage*), cmp_value_usage_tensor_size);
+  qsort(sorted_usage, num_values_to_alloc, sizeof(struct xnn_usage_record*), cmp_value_usage_tensor_size);
 
   // Start the allocation planning process.
   struct memory_block* current_live_mem_blocks = xnn_allocate_zero_memory(
       sizeof(struct memory_block) * num_values_to_alloc);
+  if (current_live_mem_blocks == NULL && num_values_to_alloc != 0) {
+    xnn_log_error("failed to allocate %zu bytes for memory planning live blocks array",
+                  sizeof(struct memory_block) * num_values_to_alloc);
+    xnn_release_memory(sorted_usage);
+    return xnn_status_out_of_memory;
+  }
   size_t mem_arena_size = 0;
   for (size_t i = 0; i < num_values_to_alloc; ++i) {
     size_t num_live_mem_blocks = 0;
-    struct xnn_value_usage* current = sorted_usage[i];
+    struct xnn_usage_record* current = sorted_usage[i];
+    if (current->tensor_size == SIZE_MAX) {
+      xnn_log_error("failed to plan memory: tensor size overflows size_t");
+      xnn_release_memory(sorted_usage);
+      xnn_release_memory(current_live_mem_blocks);
+      return xnn_status_out_of_memory;
+    }
     for (size_t j = 0; j < i; ++j) {
-      const struct xnn_value_usage* allocated = sorted_usage[j];
+      const struct xnn_usage_record* allocated = sorted_usage[j];
       if (value_lifecycle_overlap(current, allocated)) {
+        size_t allocated_end;
+        if (!xnn_safe_add(allocated->alloc_offset, allocated->tensor_size,
+                          &allocated_end)) {
+          xnn_log_error(
+              "failed to plan memory: allocated block end overflows size_t");
+          xnn_release_memory(sorted_usage);
+          xnn_release_memory(current_live_mem_blocks);
+          return xnn_status_out_of_memory;
+        }
         current_live_mem_blocks[num_live_mem_blocks++] = (struct memory_block){
             .start = allocated->alloc_offset,
-            .end = allocated->alloc_offset + allocated->tensor_size,
+            .end = allocated_end,
         };
       }
     }
-    current->alloc_offset = find_value_alloc_offset(current_live_mem_blocks, num_live_mem_blocks, current->tensor_size);
-    if (mem_arena_size < current->alloc_offset + current->tensor_size) {
-      mem_arena_size = current->alloc_offset + current->tensor_size;
+    current->alloc_offset = find_value_alloc_offset(
+        current_live_mem_blocks, num_live_mem_blocks, current->tensor_size);
+    size_t current_end;
+    if (!xnn_safe_add(current->alloc_offset, current->tensor_size,
+                      &current_end)) {
+      xnn_log_error(
+          "failed to plan memory: memory arena size overflows size_t");
+      xnn_release_memory(sorted_usage);
+      xnn_release_memory(current_live_mem_blocks);
+      return xnn_status_out_of_memory;
     }
+    if (mem_arena_size < current_end) {
+      mem_arena_size = current_end;
+    }
+  }
+
+  // Walk through all tensors that are reusing memory, and update their usage records.
+  for (size_t i = tracker->min_value_id; i <= tracker->max_value_id; ++i) {
+    struct xnn_usage_record* usage = &tracker->usage[i];
+    uint32_t reuse_id = usage->reuse_value_id;
+    if (reuse_id == XNN_INVALID_VALUE_ID) {
+      continue;
+    }
+    assert(tracker->usage[reuse_id].alloc_offset != SIZE_MAX);
+    usage->alloc_offset = tracker->usage[reuse_id].alloc_offset;
   }
 
   tracker->mem_arena_size = mem_arena_size;
   xnn_release_memory(sorted_usage);
   xnn_release_memory(current_live_mem_blocks);
-#else
-  tracker->mem_arena_size = 0;
-  for (uint32_t i = tracker->min_value_id; i <= tracker->max_value_id; ++i) {
-    if (tracker->usage[i].tensor_size > 0) {
-      tracker->usage[i].alloc_offset = tracker->mem_arena_size;
-      tracker->mem_arena_size += tracker->usage[i].tensor_size;
-    }
-  }
-#endif
+  return xnn_status_success;
 }

@@ -5,15 +5,17 @@
 
 $assert BATCH_TILE % 8 == 0
 $assert BATCH_TILE >= 8
-$ABC = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-$assert OP in ["ADD", "DIV", "RDIV", "MAX", "MIN", "MUL", "SUB", "RSUB", "SQRDIFF"]
-$assert ACTIVATION in ["LINEAR", "MINMAX"]
+$SIMD_TILE = BATCH_TILE // 8
+$assert OP in ["ADD", "DIV", "RDIV", "MAX", "MIN", "MUL", "SUB", "RSUB", "SQRDIFF", "PRELU", "RPRELU"]
 #include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include <immintrin.h>
 
-#include <xnnpack/common.h>
-#include <xnnpack/vbinary.h>
+#include "src/xnnpack/common.h"
+#include "src/xnnpack/microparams.h"
+#include "src/xnnpack/vbinary.h"
 
 
 $_MM256_OP_PS = {
@@ -26,93 +28,91 @@ $  "MUL": lambda x: "_mm256_mul_ps(%s, vb)" % x,
 $  "SUB": lambda x: "_mm256_sub_ps(%s, vb)" % x,
 $  "RSUB": lambda x: "_mm256_sub_ps(vb, %s)" % x,
 $  "SQRDIFF": lambda x: "_mm256_sub_ps(%s, vb)" % x,
+$  "PRELU": lambda x: "_mm256_mul_ps(%s, vb)" % x,
+$  "RPRELU": lambda x: "_mm256_mul_ps(%s, vb)" % x,
 $}[OP]
-$SUFFIX = {"LINEAR": "", "MINMAX": "_minmax"}[ACTIVATION]
-$PARAMS = {"LINEAR": "xnn_f32_default_params", "MINMAX": "xnn_f32_minmax_params"}[ACTIVATION]
-void xnn_f32_v${OP.lower()}c${SUFFIX}_ukernel__avx_x${BATCH_TILE}(
-    size_t n,
-    const float* a,
-    const float* b,
-    float* y,
-    const union ${PARAMS} params[restrict XNN_MIN_ELEMENTS(1)])
+void xnn_f32_v${OP.lower()}c_ukernel__avx_u${BATCH_TILE}(
+    size_t batch,
+    const float* input_a,
+    const float* input_b,
+    float* output,
+    const struct xnn_f32_default_params* restrict params)
 {
-  assert(n != 0);
-  assert(n % sizeof(float) == 0);
-  assert(a != NULL);
-  assert(b != NULL);
-  assert(y != NULL);
+  assert(batch != 0);
+  assert(batch % sizeof(float) == 0);
+  assert(input_a != NULL);
+  assert(input_b != NULL);
+  assert(output != NULL);
 
-  $if ACTIVATION == "MINMAX":
-    const __m256 vy_min = _mm256_load_ps(params->avx.min);
-    const __m256 vy_max = _mm256_load_ps(params->avx.max);
+  static const int32_t mask_table[14] = {-1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0};
 
-  const __m256 vb = _mm256_broadcast_ss(b);
-  for (; n >= ${BATCH_TILE} * sizeof(float); n -= ${BATCH_TILE} * sizeof(float)) {
-    const __m256 va${ABC[0:8]} = _mm256_loadu_ps(a);
-    $for N in range(8, BATCH_TILE, 8):
-      const __m256 va${ABC[N:N+8]} = _mm256_loadu_ps(a + ${N});
-    a += ${BATCH_TILE};
+  const __m256 vb = _mm256_broadcast_ss(input_b);
 
-    $for N in range(0, BATCH_TILE, 8):
-      __m256 vy${ABC[N:N+8]} = ${_MM256_OP_PS("va" + ABC[N:N+8])};
-
-    $if OP == "SQRDIFF":
-      $for N in range(0, BATCH_TILE, 8):
-        vy${ABC[N:N+8]} = _mm256_mul_ps(vy${ABC[N:N+8]}, vy${ABC[N:N+8]});
-
-    $if ACTIVATION == "MINMAX":
-      $for N in range(0, BATCH_TILE, 8):
-        vy${ABC[N:N+8]} = _mm256_max_ps(vy${ABC[N:N+8]}, vy_min);
-
-      $for N in range(0, BATCH_TILE, 8):
-        vy${ABC[N:N+8]} = _mm256_min_ps(vy${ABC[N:N+8]}, vy_max);
-
-    _mm256_storeu_ps(y, vy${ABC[0:8]});
-    $for N in range(8, BATCH_TILE, 8):
-      _mm256_storeu_ps(y + ${N}, vy${ABC[N:N+8]});
-    y += ${BATCH_TILE};
-  }
   $if BATCH_TILE > 8:
-    for (; n >= 8 * sizeof(float); n -= 8 * sizeof(float)) {
-      const __m256 va = _mm256_loadu_ps(a);
-      a += 8;
+    for (; batch >= ${BATCH_TILE} * sizeof(float); batch -= ${BATCH_TILE} * sizeof(float)) {
+      $for N in range(SIMD_TILE):
+        const __m256 va${N} = _mm256_loadu_ps(input_a + ${N * 8});
+      input_a += ${BATCH_TILE};
 
-      __m256 vy = ${_MM256_OP_PS("va")};
+      $for N in range(SIMD_TILE):
+        __m256 vacc${N} = ${_MM256_OP_PS("va" + str(N))};
+
       $if OP == "SQRDIFF":
-        vy = _mm256_mul_ps(vy, vy);
-      $if ACTIVATION == "MINMAX":
-        vy = _mm256_max_ps(vy, vy_min);
-        vy = _mm256_min_ps(vy, vy_max);
-      _mm256_storeu_ps(y, vy);
-      y += 8;
+        $for N in range(SIMD_TILE):
+          vacc${N} = _mm256_mul_ps(vacc${N}, vacc${N});
+      $elif OP == "PRELU":
+        $for N in range(SIMD_TILE):
+          vacc${N} = _mm256_blendv_ps(va${N}, vacc${N}, va${N});
+      $elif OP == "RPRELU":
+        $for N in range(SIMD_TILE):
+          vacc${N} = _mm256_blendv_ps(vb, vacc${N}, vb);
+
+      $for N in range(SIMD_TILE):
+        _mm256_storeu_ps(output + ${N * 8}, vacc${N});
+      output += ${BATCH_TILE};
     }
-  if XNN_UNLIKELY(n != 0) {
-    assert(n >= 1 * sizeof(float));
-    assert(n <= 7 * sizeof(float));
-    const __m256i vmask = _mm256_loadu_si256((const __m256i*) ((uintptr_t) &params->avx.mask_table[7] - n));
+  for (; batch >= 8 * sizeof(float); batch -= 8 * sizeof(float)) {
+    const __m256 va = _mm256_loadu_ps(input_a);
+    input_a += 8;
 
-    const __m256 va = _mm256_maskload_ps(a, vmask);
-
-    __m256 vy = ${_MM256_OP_PS("va")};
+    __m256 vacc = ${_MM256_OP_PS("va")};
     $if OP == "SQRDIFF":
-      vy = _mm256_mul_ps(vy, vy);
-    $if ACTIVATION == "MINMAX":
-      vy = _mm256_max_ps(vy, vy_min);
-      vy = _mm256_min_ps(vy, vy_max);
+      vacc = _mm256_mul_ps(vacc, vacc);
+    $elif OP == "PRELU":
+      vacc = _mm256_blendv_ps(va, vacc, va);
+    $elif OP == "RPRELU":
+      vacc = _mm256_blendv_ps(vb, vacc, vb);
+    _mm256_storeu_ps(output, vacc);
+    output += 8;
+  }
+  if XNN_UNLIKELY(batch != 0) {
+    assert(batch >= 1 * sizeof(float));
+    assert(batch <= 7 * sizeof(float));
+    const __m256i vmask = _mm256_loadu_si256((const __m256i*) ((uintptr_t) &mask_table[7] - batch));
 
-    __m128 vy_lo = _mm256_castps256_ps128(vy);
-    if (n & (4 * sizeof(float))) {
-      _mm_storeu_ps(y, vy_lo);
-      vy_lo = _mm256_extractf128_ps(vy, 1);
-      y += 4;
+    __m256 va = _mm256_maskload_ps(input_a, vmask);
+
+    __m256 vacc = ${_MM256_OP_PS("va")};
+    $if OP == "SQRDIFF":
+      vacc = _mm256_mul_ps(vacc, vacc);
+    $elif OP == "PRELU":
+      vacc = _mm256_blendv_ps(va, vacc, va);
+    $elif OP == "RPRELU":
+      vacc = _mm256_blendv_ps(vb, vacc, vb);
+
+    __m128 vacc_lo = _mm256_castps256_ps128(vacc);
+    if (batch & (4 * sizeof(float))) {
+      _mm_storeu_ps(output, vacc_lo);
+      vacc_lo = _mm256_extractf128_ps(vacc, 1);
+      output += 4;
     }
-    if (n & (2 * sizeof(float))) {
-      _mm_storel_pi((__m64*) y, vy_lo);
-      vy_lo = _mm_movehl_ps(vy_lo, vy_lo);
-      y += 2;
+    if (batch & (2 * sizeof(float))) {
+      _mm_storel_pi((__m64*) output, vacc_lo);
+      vacc_lo = _mm_movehl_ps(vacc_lo, vacc_lo);
+      output += 2;
     }
-    if (n & (1 * sizeof(float))) {
-      _mm_store_ss(y, vy_lo);
+    if (batch & (1 * sizeof(float))) {
+      _mm_store_ss(output, vacc_lo);
     }
   }
 }
